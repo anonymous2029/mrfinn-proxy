@@ -1,0 +1,14 @@
+{
+  "name": "mrfinn-setu-proxy",
+  "version": "1.0.0",
+  "description": "Setu AA proxy server for Mr. Finn / Personal Financial Guardian",
+  "main": "setu-proxy-server.js",
+  "scripts": {
+    "start": "node setu-proxy-server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "node-fetch": "^2.7.0"
+  }
+}
