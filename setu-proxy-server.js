@@ -23,24 +23,61 @@ const SETU = {
   baseUrl:           "https://fiu-sandbox.setu.co/v2",
 };
 
-// ── Setu AA uses direct header auth — no token exchange needed ────
+// ── Request signing private key (matches public key on Setu Bridge) ─
+const PRIVATE_KEY = `-----BEGIN PRIVATE KEY-----
+MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCnAuqrwDCkph9O
+tIT4yGlghbb6CMij3uN8DcJ6UrmmDd7ycdkrFH6JfaOLyU9pXzPfFyZDE5o3Ma3P
+KHTxOd1jZq0oN+mn7knRd4P0YE4IJfYJA9qHkbYLuFTGLzyxomHjPHfk47xHf8oP
+8JtW0g3hd1f4qDi3w2bQmZEKFPwOxJcqd8ppibMvXAavKCGxIRsazAcRU/fiR0TC
+ch/xLtqvj0hjO3LJ1CBgJtHntgDII9A45fxSitIqCyQ+stdacgNDXlca87iVPish
+AgoR9NzTYqqa0SpQPi5igONR3WP9AH1T2ax2LbbVMaFUWlZ1aFixJuYqUC4FL4n+
+3hHiKAtNAgMBAAECggEAJwcCtUN6aoNqdf8vwp48p8JffaLfVhHwGW1yuJiLyw7b
+Pk8V91/46OK7/N68aKyHZ9bWSV7zjvnUOsBiwXsq7b9Q8ADO4IAJ7oHOC2WU3okW
+a0lkAAGwJ6F55/0iYwVF+C7JeqqwNQoa+yoX9swr07gKjfArnt+x70Wvk8pPE5kC
+7Rf7zN7zz0PwH9NId63s63gSXkA/HhRtBDQa7leMMqCC58qYYRG15CnpvbATvFxl
+clbDEEnp/b26VEqL+ydmMZvJVF8xDWZ3RxKM3d9XOnRTIEsSGNVLYztSN2sgMW8A
+KFDBunrE4BgWfosXFbq5C5bVQcbHE7Fq9j9yhlcuGQKBgQDSwmOyR/04RgtxhsM3
+ql6ho87uJjTaxcaUM2Qp2nhw19pOxI60uzToMgo1FOBy91s/XS9Rl0lbLpUV8Cen
+rGxAyuylmq1qGSvhQrp8HHJ7ihZVH2OB7Md80lI3Sb5KT2Bo9la9RAuLTU3cuIhi
+Jb07Za2J6zulQyQ1Ei7oD2e9JQKBgQDK3H96otvbVnDCKTXszll0gZDX+MOUX7iI
+IRQaJVS6q2KoMy3NmJKbo0GG78OdaZxTg+n2GTZJFx9Q21GdxHUOhgjTvsIjqlHj
+veUy+cF/ZBOAraKutoKWZByLYazpfDn/hgt4HKY+sIXEzpwqIY+P4I6UX1diMvTG
+c7q6+8xBCQKBgQDKcWxgKGQj9KwzTTYhNyYU74rqGIr2hbj8S+zvgunjwoLw3D8T
+fSsRylchq774z363e6PjJIWS70jHPNpqZeXJyuHLJKtkWW9bvcPxSUXyQq627yKe
+/ziTPlc4wj3llR9PUyf4Pu8zzHp5BEwEsql073LlIq41TSvvSlsCDyIffQKBgGzX
+r8JB/UqK74cNi3RaJt7+4ZMvUuiaDy1i6iE5JGPfrthmVU35bbf5+R+IJ2GfF5Qr
+s+0qC9ldgZzlf73xeYjoW3YY5Js0OCnEamRWYv6R2HDzONUa8af1YOdb6eWAlLHH
+3wF8BaqfFbbJ0Do+tYNRzc5H9V+nzXNpBqhqj2XZAoGAVIaIphCxxtT8Irg0g+99
+chzpSsooBY7Pluqe7LNtV8pUuqB5eBY7/NHrKImIOnYVx5SZtgt5iEPOHKFi9vQl
+XeZxRC6CE78jPHN0H18S5rSnYgkWkAqt6cW46+2z8GBIItBdFImabUdle78CDNKG
+qKwQ3F8WWTn+LoZzKTx1DQc=
+-----END PRIVATE KEY-----`;
+
+const crypto = require("crypto");
+
+// Sign request body with private key → x-jws-signature header
+function signBody(body) {
+  const sign = crypto.createSign("SHA256");
+  sign.update(typeof body === "string" ? body : JSON.stringify(body));
+  sign.end();
+  return sign.sign(PRIVATE_KEY, "base64");
+}
 async function setuRequest(method, path, body) {
-  const url = `${SETU.baseUrl}${path}`;
+  const url     = `${SETU.baseUrl}${path}`;
+  const bodyStr = body ? JSON.stringify(body) : "";
+  const headers = {
+    "Content-Type":          "application/json",
+    "x-client-id":           SETU.clientId,
+    "x-client-secret":       SETU.clientSecret,
+    "x-product-instance-id": SETU.productInstanceId,
+  };
+  if (bodyStr) headers["x-jws-signature"] = signBody(bodyStr);
   console.log(`Setu ${method} ${url}`);
-  const res = await fetch(url, {
-    method,
-    headers: {
-      "Content-Type":            "application/json",
-      "x-client-id":             SETU.clientId,
-      "x-client-secret":         SETU.clientSecret,
-      "x-product-instance-id":   SETU.productInstanceId,
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  const res  = await fetch(url, { method, headers, body: bodyStr || undefined });
   const text = await res.text();
   console.log(`Setu response (${res.status}):`, text.slice(0, 400));
   try { return JSON.parse(text); }
-  catch (e) { throw new Error(`Non-JSON response (${res.status}): ${text.slice(0, 200)}`); }
+  catch (e) { throw new Error(`Non-JSON (${res.status}): ${text.slice(0, 200)}`); }
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -195,6 +232,31 @@ app.get("/session/data/:sessionId", async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// Webhook — Setu posts consent/FI status updates here
+app.post("/webhook", (req, res) => {
+  console.log("Setu webhook received:", JSON.stringify(req.body));
+  res.json({ success: true });
+});
+
+// Consent redirect — Setu sends user here after approval/rejection
+// Passes consentId and status as query params, redirects back to the app
+app.get("/consent-redirect", (req, res) => {
+  const { consentId, status, errorcode } = req.query;
+  console.log("Consent redirect received:", { consentId, status, errorcode });
+  // Redirect back to the app with the result
+  // The app reads these params and continues the flow
+  res.send(`
+    <html>
+      <body style="background:#07090c;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:16px">
+        <div style="font-size:48px">${status === "REJECTED" || errorcode ? "❌" : "✅"}</div>
+        <div style="font-size:20px;font-weight:bold">${status === "REJECTED" || errorcode ? "Consent rejected" : "Consent approved!"}</div>
+        <div style="color:rgba(255,255,255,0.5);font-size:14px">Return to the app and tap "I approved it ✓"</div>
+        <div style="color:rgba(255,255,255,0.3);font-size:12px;margin-top:8px">Consent ID: ${consentId || "N/A"}</div>
+      </body>
+    </html>
+  `);
 });
 
 // Start
